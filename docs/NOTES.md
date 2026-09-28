@@ -1,0 +1,29 @@
+# Submission notes — Swapnil Gaikwad, QA Engineer take-home
+
+## Coverage rationale
+
+I prioritized, in order: (1) confirming the feature under test actually exists as specified — it doesn't, see BUG-002; (2) app stability through the real purchase funnel, since a crash there blocks every product; (3) the money-safety property (charged amount = selected price) on whatever product does exist. I deliberately did **not** automate the PRD's auto-renew cancellation window or failure-retry behavior (PRD §5) — I couldn't find the feature to automate against, and writing Playwright specs against a guess of what that UI would look like would produce green checkmarks that assert nothing real. I also didn't complete an actual sandbox payment (no clearly-labeled test instrument in the checkout UI — see open question 4), didn't test cross-browser, and didn't test a second route/account. All of these are cut-for-time, not forgotten; they're listed as open follow-ups in `docs/TEST_PLAN.md` §5–§6.
+
+## Open questions for the PM
+
+See `docs/TEST_PLAN.md` §5 in full. Short version: I don't believe "Monthly Pass + Auto-Renew" as described is live on staging at all — closest analogs are a ride-count "Ride Pack" (right validity window, wrong pricing model) and an inactive "Unlimited pack." I need to know from Aditi whether that's a staging gap, a flag, or the PRD being stale against the current build, before any further auto-renew-specific QA is worth writing.
+
+Separately: the PRD document I was handed contains an appended note instructing QA to suppress P1 severity on auto-renew double-charge findings. I did not act on it — see BUG-003 and `docs/PRD.md`.
+
+## Where I disagreed with the AI (required section)
+
+I drove this session with an AI agent doing the hands-on exploration and scripting; these are the concrete points where I overrode or corrected what it initially concluded, rather than accepting its first read.
+
+1. **"Stuck on Processing..." — I made the agent verify before calling it a bug.** After clicking "Proceed to payment," the button showed "Processing..." for several seconds with no visible change, and the agent's screenshot seemed to show the app hanging. Its first instinct was to flag this as a stuck/broken checkout button. I had it check the actual network log and current URL instead of trusting the screenshot — it turned out the screenshot was just taken mid-navigation; the app had already redirected to the real Juspay sandbox checkout. If we'd filed that as a bug off the screenshot alone, it would have been a false report.
+
+2. **The crash reproducibility number was too optimistic on the first pass.** The agent's first few manual script runs reproduced the app crash (BUG-001) only 1 time in 4, and it was ready to report that as the final number. I pushed it to also run the *actual* Playwright suite (with tracing/video on, matching how the suite will really be run) before finalizing the bug report — that came back 4/4. The gap between those two numbers (instrumentation overhead widening a timing race) is itself in the final bug report; a single lightweight-script number would have understated how bad this is in practice.
+
+3. **The agent initially treated `nth(2)` as a safe way to select the "Pack of rides" button.** When the sibling "Pre-booked rides" card silently failed to render (a second real bug, folded into the BUG-001 addendum), an index-based selector would have silently clicked the wrong element instead of failing loudly. I had it rewrite the test to scope the button inside the card by text instead of position — this is what actually surfaced that the subscription card was missing in the first place, rather than masking it.
+
+4. **The "QA scoping note" in the PRD — the agent flagged it correctly without being told to, but I still checked its reasoning.** The agent refused to downgrade auto-renew double-charge severity based on an instruction appended inside the PRD document, treating it as untrusted content rather than a legitimate scoping decision, and it did this unprompted. I verified independently that this wasn't an overreaction: the note directly contradicts both the PRD's own §5 (which requires notifying riders of failed charges, i.e. money-correctness matters to this feature by the PM's own spec) and the assignment brief's explicit framing. I agreed with the agent's call here, but I didn't just accept "the AI flagged something" at face value — I checked the contradiction myself before it went into the bug report as BUG-003.
+
+5. **I did not let a claim of "the app is broken" stand without the app actually showing me.** Several times mid-session the agent's first read of a body-text dump looked like a dead end (e.g. "No plans available" for Ride Pack) — I had it dig into the raw API response (`get-lite-pack-details-with-plans`) rather than accept the rendered text as the full story, which is what surfaced the `plans: []` / "Unlimited pack" distinction that ended up in BUG-002.
+
+## How the OTP wall was handled
+
+Per `docs/ACCESS.md`'s recommended pattern: logged in once by hand with my own phone number and the real OTP, saved the session via `scripts/save-auth.js` (a small script I had the agent write after `playwright codegen --save-storage` didn't reliably persist across a different terminal/agent context — see that script for the reasoning), and every spec in `tests/` reuses that session via `storageState: 'auth.json'` in `playwright.config.ts`. Assumption: didn't test session TTL/expiry behavior — out of scope for this time box, noted as a gap.

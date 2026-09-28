@@ -11,7 +11,10 @@ export default defineConfig({
   retries: 0, // no retries — a flaky pass hides a real bug during triage
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
-    baseURL: process.env.STAGING_BASE_URL,
+    baseURL: process.env.STAGING_BASE_URL || 'https://app.cityflostaging.com',
+    // OTP can't be scripted — log in once by hand via `npx playwright codegen
+    // --save-storage=auth.json <baseURL>`, then every spec reuses that session.
+    storageState: 'auth.json',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

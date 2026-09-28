@@ -1,23 +1,34 @@
-import { test as base, expect } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
+
+export const PICKUP = 'Hiranandani Gardens, Powai';
+export const DROPOFF = 'Bandra Kurla Complex, Bandra East';
 
 /**
- * Shared fixtures for the Monthly Pass + Auto-Renew suite.
- * Fill in real selectors/flows once staging access is confirmed —
- * don't guess selectors from the PRD, read them off the live DOM.
+ * Sets pickup/drop on Home if not already persisted from a prior run
+ * (the app keeps the last search in localStorage), then searches.
  */
-export const test = base.extend<{ loggedInPage: import('@playwright/test').Page }>({
-  loggedInPage: async ({ page }, use) => {
-    const phone = process.env.TEST_PHONE_NUMBER;
-    if (!phone) throw new Error('TEST_PHONE_NUMBER not set in .env');
+export async function searchRoute(page: Page) {
+  await page.goto('/', { waitUntil: 'networkidle' });
 
-    await page.goto('/');
-    // TODO: replace with real login flow once selectors are confirmed against staging
-    // await page.getByLabel('Phone number').fill(phone);
-    // await page.getByRole('button', { name: /send otp/i }).click();
-    // await page.getByLabel('OTP').fill(await getOtp());
+  const needsPickup = await page.getByText('Select pickup location').isVisible().catch(() => false);
+  if (needsPickup) {
+    await page.getByText('Select pickup location').click();
+    await page.getByRole('textbox').first().fill(PICKUP.split(',')[0]);
+    await page.getByText(PICKUP).first().click();
 
-    await use(page);
-  },
-});
+    await page.getByText('Select drop location').click();
+    await page.getByRole('textbox').first().fill('BKC');
+    await page.getByText(DROPOFF).first().click();
+  }
+
+  await page.getByRole('button', { name: 'Search' }).click();
+  await page.waitForURL('**/search-results', { timeout: 15_000 });
+}
+
+/** Proceeds from search results into the booking-type screen. */
+export async function proceedToBookingType(page: Page) {
+  await page.locator('button:has-text("Proceed")').first().click();
+  await page.waitForTimeout(3_000);
+}
 
 export { expect };

@@ -1,25 +1,41 @@
 # Cityflo QA Assignment — Monthly Pass + Auto-Renew
 
-Time-boxed to 2–4 focused hours. Small, sharp slice over volume.
+Take-home for the QA Engineer role. See `docs/BRIEF.md`, `docs/PRD.md`, `docs/ACCESS.md` for the assignment as given; `docs/TEST_PLAN.md` for what was actually tested and found; `bug-reports/BUGS.md` for filed bugs; `docs/NOTES.md` for the submission reflection.
 
-## Workflow
+**Headline finding:** the "Monthly Pass + Auto-Renew" feature described in the PRD does not exist on staging under that name or shape — see `docs/TEST_PLAN.md` §1 and `bug-reports/BUGS.md` BUG-002. This shaped everything downstream.
 
-1. **Paste the PRD** into `docs/PRD.md` verbatim.
-2. **Get staging access** — fill in `.env` (copy from `.env.example`) with the staging URL and your own phone number for OTP login.
-3. **Explore staging manually first.** Verify the PRD against the live app before trusting either it or the test plan below — this is the actual point of the exercise.
-4. **Fill in `docs/TEST_PLAN.md`** — scope, spec gaps, and the test case matrix. Mark which cases get automated.
-5. **Automate the handful of cases that matter** in `tests/*.spec.ts` (Playwright). Replace the `test.fixme` placeholders with real selectors/assertions found by exploring the live DOM — don't guess them from the PRD.
-6. **Run against staging:**
-   ```
-   npm install
-   npx playwright install chromium
-   npm test
-   ```
-7. **Triage failures** — for each real bug, file a report in `bug-reports/` using `TEMPLATE.md`, with repro steps and a defensible severity.
+## Setup
 
-## Rules of engagement
+```
+npm install
+npx playwright install chromium
+```
 
-- Authenticate with your own phone number only.
-- Never use a real card — staging payments are sandboxed and free.
-- Test respectfully — no load/stress testing, no mass account creation.
-- You are QA, not the implementer — don't fix bugs, report them.
+Login can't be scripted (real OTP to a real phone). One-time manual step:
+
+```
+cp .env.example .env   # fill in TEST_PHONE_NUMBER
+node scripts/save-auth.js
+```
+
+This opens a browser, fills your number, sends the OTP. Type the OTP into the browser yourself, wait for the logged-in home screen, **then** return to the terminal and press Enter — it saves the session to `auth.json`, which every spec reuses via `storageState` (see `playwright.config.ts`). Session TTL/expiry wasn't tested; re-run this script if tests start failing with a bounce to `/login`.
+
+## Run the suite
+
+```
+npm test              # headless
+npm run test:headed   # watch it run
+npm run report         # HTML report with traces/videos/screenshots on failure
+```
+
+Three specs, ~3 minutes:
+- `tests/auth.spec.ts` — session reuse works
+- `tests/purchase.spec.ts` — the real purchase funnel doesn't crash (regression test for BUG-001), and the selected plan's price matches the checkout amount (money-safety; see BUG-001 addendum for why this one isn't reliably green in this environment right now — that's itself part of the finding)
+- `tests/feature-presence.spec.ts` — canary asserting "auto-renew" appears nowhere in the app today; meant to start failing the day the real feature ships
+
+## Rules of engagement (from ACCESS.md)
+
+- Authenticate with your own phone number only — no shared test account exists.
+- Never enter real card/UPI details. Staging payments are sandboxed.
+- Test respectfully — no load/stress/fuzzing against shared staging.
+- QA only — bugs are reported, not fixed.

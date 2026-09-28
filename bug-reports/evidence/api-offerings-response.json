@@ -1,0 +1,10 @@
+{
+  "_source": "GET /api/routes/get-product-offerings-between-stops?route_pk=6540&start_stop_pk=18907&end_stop_pk=9 — captured 2026-09-29, Hiranandani Gardens (Powai) -> BKC, own staging account",
+  "subscription_fare": 109,
+  "normal_fare": 135,
+  "ride_textual_content": [
+    { "ride_type": "single", "heading": "Book One-way ride", "actual_price": 135, "discount_price": 49 },
+    { "ride_type": "subscription", "heading": "Pre-booked rides", "actual_price": 135, "discount_price": 109, "starting_fare": 109 },
+    { "ride_type": "lite_pack", "heading": " Pack of rides", "actual_price": 49, "discount_price": 49 }
+  ]
+}
