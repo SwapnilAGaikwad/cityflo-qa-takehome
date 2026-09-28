@@ -8,6 +8,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false, // OTP + auto-renew flows share test state; run serially for now
+  workers: 1, // staging is shared/live — ACCESS.md prohibits parallel request storms
   retries: 0, // no retries — a flaky pass hides a real bug during triage
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
