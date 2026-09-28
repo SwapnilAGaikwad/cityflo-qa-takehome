@@ -46,7 +46,6 @@ None of these is "pay once, ride an unlimited number of times for 30 days for a 
 - Presence/absence of the PRD's stated features and copy (auto-renew, validity math, empty states)
 
 **Explicitly out of scope (cut for time, noted here per the brief's instructions):**
-- Actually completing a sandbox payment (see §5, Q4 — I could not confirm a safe test instrument from the UI itself, and ACCESS.md says to stop rather than guess)
 - Renewal-date / time-travel behavior (can't fast-forward staging's clock in this window; PRD §5's failure-retry and 24h-cancel-lock claims are therefore **unverified**, not confirmed)
 - Cross-browser/device matrix — single Chromium desktop session only
 - Any second staging account (no shared test account exists per ACCESS.md; only my own number)
@@ -74,7 +73,7 @@ Three Playwright specs (`tests/auth.spec.ts`, `tests/purchase.spec.ts`, `tests/f
 2. **`purchase.spec.ts`** — walks the real money path (search → proceed → select a Ride Pack → reach the sandbox payment page) and asserts the charged amount matches the selected plan's price. This is the generalized version of the assignment's core concern ("the bug that double-charges a commuter") applied to the product that actually exists, since the PRD's specific ₹3,000 flow doesn't. It also incidentally exercises TC-05 (the crash), because that's exactly the kind of regression this test exists to catch.
 3. **`feature-presence.spec.ts`** — a deliberate canary: asserts "auto-renew" text does not appear anywhere in the app today. This is not a normal pass/fail test; it's a tripwire. If it ever starts failing, that's the signal the real feature shipped and needs the auto-renew test suite this PRD actually calls for (cancel-window, retry-on-failure, etc.) — none of which can be written honestly against a feature that isn't there yet.
 
-**Not automated:** anything involving a completed payment or elapsed time (renewal firing, validity expiry, failed-charge retry) — genuinely can't be exercised safely or observably within this time box on live staging. Flagged as gaps, not silently dropped.
+**Not automated:** anything requiring *elapsed time* (renewal firing, validity expiry, failed-charge retry) — genuinely can't be exercised on live staging without waiting out real days. A completed payment specifically *is* now automated (see §0b — `purchase.spec.ts`'s "completes a real sandbox purchase end-to-end" test), added once the sandbox test instrument was found. Elapsed-time gaps are flagged, not silently dropped.
 
 ## 5. Open questions for the PM (Aditi)
 
@@ -88,4 +87,4 @@ Three Playwright specs (`tests/auth.spec.ts`, `tests/purchase.spec.ts`, `tests/f
 
 Cut auto-renew cancellation-window and failure-retry test automation entirely, rather than writing tests against my best guess of what the UI *would* look like. Writing Playwright specs for UI that doesn't exist would produce green checkmarks that assert nothing real — worse than no test, because it *looks* like coverage. The honest move under time pressure was to spend the budget confirming the feature's actual absence thoroughly (nav, API responses, every likely page) rather than half-building automation for a guess.
 
-Also cut: completing an actual sandbox payment (§5 Q4), cross-browser coverage, and a second account/route to rule out route-specific pricing weirdness — all noted as follow-ups rather than silently dropped.
+Also cut: cross-browser coverage and a second account/route to rule out route-specific pricing weirdness — noted as follow-ups rather than silently dropped.
