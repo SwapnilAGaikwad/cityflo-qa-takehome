@@ -4,10 +4,10 @@ Tested against `https://app.cityflostaging.com`, own staging account, 2026-09-29
 
 ---
 
-## [BUG-001] Booking-type screen intermittently crashes to an unhandled error boundary during the core purchase funnel
+## [BUG-001] Booking-type screen crashes / partially fails to render during the core purchase funnel — reproduction rate worsened from ~25% to ~100% over a few hours of testing
 
-- **Severity:** P2
-- **Severity rationale:** Not a money bug (no charge occurs before this screen), but it fully blocks the purchase funnel when it fires — a rider who hits this cannot buy anything until they reload. On a page this central (every purchase passes through it), an intermittent full-app crash with no user-facing recovery is a release blocker, not cosmetic. Would be P1 if a repro path pushed it above occasional/random.
+- **Severity:** P1 (raised from P2 — see reproducibility timeline below)
+- **Severity rationale:** Not a money bug in itself (no charge occurs before this screen), but it now reliably blocks the purchase funnel entirely — every purchase attempt in the final hour of this session hit it. A rider cannot buy anything until they reload, and by the end of testing, reload didn't reliably help either. A purchase funnel that's effectively down is a release blocker regardless of root cause.
 - **Area / feature:** Purchase funnel — `/booking/ride-type`
 - **Environment:** staging — `https://app.cityflostaging.com` · Chromium (Playwright) · 2026-09-29 IST · own account
 - **PRD reference:** PRD §2 step 2 ("Rider goes to Buy Pass... sees the price, pays") assumes this screen renders reliably. Not explicitly covered by a PRD claim beyond that.
@@ -33,7 +33,20 @@ Full React unhandled-error screen: *"Unexpected Application Error! Cannot read p
 ### Notes
 Root cause looks like a race between the React route mounting the map component and the Google Maps JS SDK's marker initialization (`marker.js` calling into something not yet attached to the DOM) — the kind of thing that gets worse, not better, under real-world network variance (exactly the "flaky networks" condition this role is meant to catch). Did not attempt to fix; flagging for eng to add either an `ErrorBoundary` around the map widget specifically (so a map failure doesn't take down the whole purchase flow) or defensive guards in the map-mount lifecycle.
 
-**Addendum — reproducibility is condition-dependent, and that's itself informative.** Lightweight uninstrumented scripts reproduced this ~25% (1/4 runs). The *same* flow run through the full Playwright test runner (with trace/video/screenshot recording on, per `playwright.config.ts`) reproduced it **4/4** runs, and even when the top-level crash banner didn't fire, a related partial-render failure showed up instead: the "Pre-booked rides" (subscription) card silently failed to render at all, leaving only "Book One-way ride" and "Pack of rides," with the map pane still showing the same `AuthFailure` error (`bug-reports/evidence/BUG-001-addendum-missing-subscription-card.png`). This points to CPU/timing pressure (recording overhead) widening the same race window, and it also means: **I could not get a fully green automated run of `purchase.spec.ts`'s money-safety test within this time box** — every attempt hit this same instability before reaching checkout. The one clean confirmation that the charged amount matches the selected plan (₹525 = ₹525) was captured via a manual/interactive run, not the automated suite (`bug-reports/evidence/juspay-checkout-amount-match.png`). I'm reporting this rather than quietly reworking the test until it happened to pass — a test that only goes green when you retry past a real bug is not coverage, it's noise.
+**Addendum — reproducibility got worse over the session, and the trend is itself the finding.** Timeline, same route, same account, all within this test session:
+
+| When | Method | Result |
+|---|---|---|
+| Early session | Lightweight uninstrumented scripts | 1/4 runs crashed (~25%) |
+| Mid-session | Full Playwright runner (trace/video/screenshot on) | 4/4 runs crashed |
+| Late session | Lightweight scripts, retested to verify | 3/3 failed (2 partial-render, 1 full crash) |
+| Late session | 5 more clean attempts | 5/5 failed (4 partial-render, 1 full crash) — **0/8 clean in the final stretch** |
+
+Two failure modes, likely the same root cause: (a) the full crash banner ("Unexpected Application Error... getRootNode"), or (b) a partial-render failure where the "Pre-booked rides" (subscription) card silently fails to render at all, leaving only "Book One-way ride" and "Pack of rides" — with the map pane still showing the same `AuthFailure` error every time (`bug-reports/evidence/BUG-001-addendum-missing-subscription-card.png`).
+
+The monotonic worsening — not random noise, but a clear trend from occasional to constant within a few hours of normal (non-load) usage on one account — points at something stateful degrading: a Google Maps API key hitting a quota/rate limit as repeated page loads accumulate, or similar. That's a guess at mechanism, not a diagnosis; flagging the pattern for eng to check actual key quota/usage metrics.
+
+**Practical consequence:** I could not get a fully green automated run of `purchase.spec.ts`'s money-safety test in this environment, and by the end of the session could not reliably reach the payment page at all to attempt a real sandbox purchase — every attempt in the final stretch hit this bug first. The one clean confirmation that the charged amount matches the selected plan (₹525 = ₹525) was captured earlier in the session via a manual/interactive run, before the failure rate climbed (`bug-reports/evidence/juspay-checkout-amount-match.png`). Reporting this rather than quietly retrying until it happened to pass — a test that only goes green when you retry past a worsening real bug is not coverage, it's noise, and the worsening trend is more important than one more retry.
 
 ---
 

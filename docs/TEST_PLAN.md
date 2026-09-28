@@ -4,6 +4,10 @@
 **Date:** 2026-09-29 (IST).
 **Time box:** ~3 hours exploration + automation + triage.
 
+## 0. Update, later in the same session
+
+BUG-001's reproduction rate was **not stable** — it climbed from ~25% early in this session to 0/8 clean runs by the end (see the addendum in `bug-reports/BUGS.md`). Because of that, I was **unable to complete a live sandbox purchase** in the final stretch, despite deciding it was worth attempting (Juspay's `sandbox.assets.juspay.in` subdomain is itself reasonable evidence of a genuine sandbox context, which resolved my earlier hesitation about test instruments — see open question 4 below). The purchase funnel became the actual blocker instead. Severity on BUG-001 raised from P2 to P1 to reflect this.
+
 ## 1. Headline finding (read this first)
 
 **The product described in the PRD does not exist in the live app under that name or shape.**
@@ -46,7 +50,7 @@ None of these is "pay once, ride an unlimited number of times for 30 days for a 
 | TC-02 | Purchase funnel | Route search (Hiranandani Gardens → BKC) returns real results, "Proceed" reaches the booking-type screen | P1 | Yes | **Pass** (intermittently crashes — see BUG-001) |
 | TC-03 | Purchase funnel | Booking-type screen offers exactly the three real product types with non-zero prices | P2 | Yes | **Pass** |
 | TC-04 | Money safety | Selected Ride Pack's displayed price equals the amount shown on the sandbox payment redirect | P1 | Written, not reliably green | ₹525 → ₹525 confirmed **manually**; automated run blocked by BUG-001's instability before reaching checkout in every attempt this session — see BUG-001 addendum |
-| TC-05 | Stability | Booking-type page does not crash to an unhandled error boundary | P1 | Yes | **Fails** — 1/4 under lightweight scripts, 4/4 under the full instrumented Playwright runner. See BUG-001 |
+| TC-05 | Stability | Booking-type page does not crash to an unhandled error boundary | P1 | Yes | **Fails, worsening over the session** — 1/4 early, climbing to 0/8 clean by the end. See BUG-001 (severity raised to P1) |
 | TC-06 | Spec vs. reality | "Auto-Renew" does not appear anywhere in the app (home, Ride Pack tab, My Rides, Profile, More) | — (canary) | Yes | Documents current absence; **will fail (as intended) the day this ships**, which is the point — a red flag, not a bug |
 | TC-07 | Pass validity | Ride Pack "30 days" validity claim shown pre-purchase | P2 | Exploratory only | Displayed correctly pre-purchase; **could not verify post-purchase expiry date arithmetic** without completing a real payment (out of scope, §5 Q4) |
 | TC-08 | Empty state | Rider with no active pack/pass sees an inviting empty state, not an error | P3 | Exploratory | "Ride Pack" tab shows a clean empty state ("0% users... No plans available") — not broken, but the copy reads like an error/warning rather than an inviting CTA; borderline, not filed as a bug |
