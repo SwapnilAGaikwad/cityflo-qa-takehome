@@ -4,6 +4,37 @@ Tested against `https://app.cityflostaging.com`, own staging account, 2026-09-29
 
 ---
 
+## [BUG-004] Paid-tier seat surcharge (₹5/₹10) not charged when booking a ride via Ride Pack credits
+
+- **Severity:** P1
+- **Severity rationale:** Direct, systematic revenue loss — this isn't a rare edge case, it's the normal seat-selection flow. The seat map itself labels seats with a price tier (₹10 / ₹5 / Free / -₹10 discounted), meaning Cityflo's own product intends premium seats to cost more. If that surcharge silently doesn't apply on pack-covered bookings, every rider who picks a ₹10 seat while redeeming pack credits gets it for free, and Cityflo eats the difference on every such booking, indefinitely, with no error or signal to anyone.
+- **Area / feature:** Purchase funnel — seat selection + payment summary, when booking via "Book with Available Rides" (Ride Pack redemption)
+- **Environment:** staging — `https://app.cityflostaging.com` · Chromium (Playwright, manual codegen) · 2026-09-29 IST · own account, active 5 Rides Pack
+- **PRD reference:** Not covered by the PRD at all (seat-tier pricing isn't mentioned in the Monthly Pass spec) — this is a gap found by exercising the live app, not a documented claim being violated. Money-correctness concerns apply regardless of whether the PRD mentions the mechanism.
+
+### Steps to reproduce
+1. Have an active Ride Pack with remaining credits (e.g. the 5 Rides Pack from BUG-002's evidence).
+2. Search a route, proceed to booking type, choose "Book with Available Rides: N" (pack redemption).
+3. On Select Seat, choose a seat explicitly labeled with a non-zero tier price (e.g. "Seat price: ₹10").
+4. Confirm the seat, proceed to the booking summary / "Total" screen.
+
+**Reproduced independently twice, different seats:** Seat 2D ("Seat price: ₹10") and Seat 4A (also priced) — both times the total read **"Total₹0 Amount PayableFREE"**, and the booking completed via "Book Pack Ride" with no surcharge applied.
+
+### Expected
+The ₹10 (or ₹5) seat-tier surcharge shown on the seat map should be added to the amount payable, even when the base ride itself is covered by pack credits — otherwise the seat-tier pricing system has no effect for any pack-redeemed booking.
+
+### Actual
+Amount Payable shows ₹0 / FREE regardless of the selected seat's price tier, for pack-redeemed bookings.
+
+### Evidence
+- Two independent live reproductions (seat 2D, seat 4A) — codegen scripts and their "Total₹0Amount PayableFREE" assertions preserved in session history.
+- My own attempt to reproduce a third time hit a different intermediate state — the confirmation page's "Calculating..." spinner never resolved during observation, and a date-selector quirk meant the attempt landed on a date with a pre-existing booking rather than a clean slot (`bug-reports/evidence/seat-surcharge-check.png`). Noting this rather than hiding it: my own run doesn't independently confirm the ₹0 outcome, but doesn't contradict it either — a stuck calculation on a premium seat is, if anything, a second plausible symptom of the same underlying pricing-integration gap.
+
+### Notes
+This is the inverse of the "double-charges a commuter" failure mode the role is explicitly meant to catch — instead of overcharging a rider, the system undercharges itself. Recommend eng check whether the seat-tier surcharge is computed at all in the pack-redemption code path, versus the one-way/subscription paths (where it may work correctly — not tested here due to time). Worth a real payment-gateway log check: does the ₹10/₹5 line item appear in the backend order at all for these bookings, or is it dropped before the charge is computed?
+
+---
+
 ## [BUG-001] Booking-type screen crashes / partially fails to render during the core purchase funnel — reproduction rate worsened from ~25% to ~100% over a few hours of testing
 
 - **Severity:** P1 (raised from P2 — see reproducibility timeline below)
@@ -56,7 +87,7 @@ The monotonic worsening — not random noise, but a clear trend from occasional 
 
 **What was observed:** After purchasing the "5 Rides Pack" (₹525, 5 credits), the Ride Pack tab correctly showed "You currently have 5 rides remaining." After what appeared to be two separate "Book Pack Ride" confirmations (different seats, on a manually-driven Playwright codegen run), the balance still read "You currently have 5 rides remaining" — unchanged.
 
-**Why I'm not calling it confirmed:** `My Rides` shows only **one** upcoming booking, not two or more. That means either (a) ride credits genuinely aren't decrementing on booking, which is a real bug, or (b) the second/later "Book Pack Ride" attempts silently didn't create a new booking at all (most likely because a ride was already booked for that date/route, and the app didn't show a clear error) — a UX bug, but not a money bug. I attempted to isolate this cleanly (book a *fresh* ride on a different date, check the balance before/after in a controlled run) and was blocked by the same instability as BUG-001 before completing it.
+**Why I'm not calling it confirmed:** `My Rides` shows only **one** upcoming booking, not two or more (`bug-reports/evidence/my-rides-multiple-bookings.png`). That means either (a) ride credits genuinely aren't decrementing on booking, which is a real bug, or (b) the second/later "Book Pack Ride" attempts silently didn't create a new booking at all (most likely because a ride was already booked for that date/route, and the app didn't show a clear error) — a UX bug, but not a money bug. I attempted to isolate this cleanly (book a *fresh* ride on a different date, check the balance before/after in a controlled run) and was blocked by the same instability as BUG-001 before completing it.
 
 **What would resolve this:** a clean repro — pick a date with no existing booking, confirm balance before, complete exactly one pack-ride booking, confirm balance after. Recommend eng check server-side credit-decrement logic and booking logs directly regardless, since "ride credits might not decrement" is the kind of thing worth a five-minute log check even on ambiguous field evidence — the downside of it being real and unchecked is much larger than the cost of checking.
 
